@@ -1,0 +1,25 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+            "label": "Building D3D12 Renderer...",
+            "windows": {
+                "command": "${workspaceFolder}/build.bat",
+            },
+            "linux": {
+                "command": "${workspaceFolder}/build-all.sh",
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+		}
+	]
+}
