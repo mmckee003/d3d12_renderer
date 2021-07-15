@@ -1,5 +1,7 @@
 #pragma once
 
+#define Assert(cond) do { if (!(cond)) __debugbreak(); } while (0)
+
 // Unsigned types.
 typedef unsigned char      u8;
 typedef unsigned short     u16;

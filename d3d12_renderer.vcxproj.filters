@@ -6,10 +6,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\core\Application.h">
+    <ClInclude Include="src\core\application.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="src\core\core_types.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\logger.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
@@ -18,5 +21,8 @@
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\core\logger.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
