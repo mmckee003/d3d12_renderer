@@ -24,7 +24,8 @@ void log_output(LogLevel level, const char* message, ...)
 	const char* level_strings[6] = { "[FATAL]: ", "[ERROR]: ", "[WARN]: ", "[INFO]: ", "[DEBUG]: ","[TRACE]: " };
 	bool is_error = level < LogLevel::LOG_LEVEL_WARN;
 
-	const s32 msg_length = 32000;
+	// Currently we only support a message length of 16000 characters.
+	const s32 msg_length = 16000;
 	char out_message[msg_length];
 	memset(out_message, 0, sizeof(out_message));
 
