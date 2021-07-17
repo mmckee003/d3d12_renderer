@@ -133,11 +133,15 @@
   <ItemGroup>
     <ClInclude Include="src\core\application.h" />
     <ClInclude Include="src\core\core_types.h" />
+    <ClInclude Include="src\core\input.h" />
     <ClInclude Include="src\core\logger.h" />
+    <ClInclude Include="src\core\platform\platform.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\application.cpp" />
+    <ClCompile Include="src\core\input.cpp" />
     <ClCompile Include="src\core\logger.cpp" />
+    <ClCompile Include="src\core\platform\win32\win32_platform.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -6,6 +6,7 @@
 // remove platform stuff from application.cpp.
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 
 struct ApplicationConfig
 {

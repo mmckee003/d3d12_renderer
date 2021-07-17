@@ -15,6 +15,10 @@
     <ClInclude Include="src\core\logger.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="src\core\input.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\core\platform\platform.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\application.cpp">
@@ -24,5 +28,9 @@
     <ClCompile Include="src\core\logger.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="src\core\input.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="src\core\platform\win32\win32_platform.cpp" />
   </ItemGroup>
 </Project>

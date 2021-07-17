@@ -1,14 +1,85 @@
 #include "core/application.h"
+#include "core/input.h"
 
-static LRESULT CALLBACK WindowProc(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
+static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
 {
-    switch (Message)
+    switch (message)
     {
     case WM_DESTROY:
+    {
         PostQuitMessage(0);
         return 0;
     }
-    return DefWindowProcW(Window, Message, WParam, LParam);
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP:
+    {
+        // TODO: We need to handle repeat key down messages when holding a key. Currently we just do 
+        // nothing about it. We should add proper handling at some point.
+        bool pressed = (message == WM_KEYDOWN || message == WM_SYSKEYDOWN);
+        Key key = (Key)w_param;
+        process_key(key, pressed);
+        break;
+    }
+    case WM_MOUSEMOVE:
+    {
+        s32 x_pos = GET_X_LPARAM(l_param);
+        s32 y_pos = GET_Y_LPARAM(l_param);
+        process_mouse_move(x_pos, y_pos);
+        break;
+    }
+    case WM_LBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONUP:
+    {
+        bool pressed = (message == WM_LBUTTONDOWN || message == WM_MBUTTONDOWN || message == WM_RBUTTONDOWN);
+        Button button = Button::BUTTON_MAX_BUTTONS;
+        switch (message)
+        {
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+        {
+            button = Button::BUTTON_LEFT;
+            break;
+        }
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP:
+        {
+            button = Button::BUTTON_MIDDLE;
+            break;
+        }
+        case WM_RBUTTONDOWN:
+        case WM_RBUTTONUP:
+        {
+            button = Button::BUTTON_RIGHT;
+            break;
+        }
+        }
+
+        if (button != Button::BUTTON_MAX_BUTTONS)
+        {
+            process_button(button, pressed);
+        }
+        break;
+    }
+    case WM_MOUSEWHEEL:
+    {
+        s32 z_delta = GET_WHEEL_DELTA_WPARAM(w_param);
+        if (z_delta != 0)
+        {
+            // Maybe pass raw delta to application layer and let it handle scaling
+            // and clamping.
+            z_delta = (z_delta < 0) ? -1 : 1;
+            process_mouse_wheel(z_delta);
+        }
+        break;
+    }
+    }
+    return DefWindowProcW(window, message, w_param, l_param);
 }
 
 bool initialize(Application* app, ApplicationConfig& config)
