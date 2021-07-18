@@ -1,5 +1,6 @@
 #include "core/application.h"
 #include "core/input.h"
+#include "core/logger.h"
 
 static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -97,6 +98,10 @@ bool initialize(Application* app, ApplicationConfig& config)
         // TODO: Log a message if we fail to create a window.
         return false;
     }
+
+    LOG_INFO("Application initialized successfully!");
+
+    return true;
 }
 
 void shutdown(Application* app)

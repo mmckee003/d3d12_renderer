@@ -72,7 +72,7 @@ bool was_key_up(Key key)
 
 void process_key(Key key, bool pressed)
 {
-	LOG_DEBUG("Processing key: %c", (u16)key);
+	// LOG_DEBUG("Processing key: %c", (u16)key);
 	if (input.keyboard_current.keys[(u32)key] != pressed)
 	{
 		input.keyboard_current.keys[(u32)key] = pressed;
@@ -120,7 +120,7 @@ void get_previous_mouse_position(s32& x, s32& y)
 
 void process_button(Button button, bool pressed)
 {
-	LOG_DEBUG("Processing Button: %d", (u8)button);
+	// LOG_DEBUG("Processing Button: %d", (u8)button);
 	if (input.mouse_current.buttons[(u8)button] != pressed)
 	{
 		input.mouse_current.buttons[(u8)button] = pressed;
@@ -140,5 +140,5 @@ void process_mouse_move(s32 x, s32 y)
 void process_mouse_wheel(s8 z_delta)
 {
 	// TODO: Add this to input tracking.
-	LOG_DEBUG("Processing mouse scroll: %d", z_delta);
+	// LOG_DEBUG("Processing mouse scroll: %d", z_delta);
 }
