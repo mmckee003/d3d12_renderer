@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/core_types.h"
+#include "renderer/renderer.h"
 
 // TODO: Move platform stuff to a seperate platform layer. Also
 // remove platform stuff from application.cpp.
@@ -28,6 +29,8 @@ struct Application
 	// Debug stats.
 	u32 frame_count;
 	LARGE_INTEGER frequency, time;
+
+	Renderer renderer;
 };
 
 bool initialize(Application* app, ApplicationConfig& config);

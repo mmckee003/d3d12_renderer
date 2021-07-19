@@ -1,6 +1,7 @@
 #include "core/application.h"
 #include "core/input.h"
 #include "core/logger.h"
+#include "renderer/renderer.h"
 
 static LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -99,6 +100,11 @@ bool initialize(Application* app, ApplicationConfig& config)
         return false;
     }
 
+    if (app->renderer.initialize(app->client_width, app->client_height, app->window_handle))
+    {
+        LOG_INFO("Renderer initialized successfully!");
+    }
+
     LOG_INFO("Application initialized successfully!");
 
     return true;
@@ -107,6 +113,7 @@ bool initialize(Application* app, ApplicationConfig& config)
 void shutdown(Application* app)
 {
 	// cleanup stuff like maybe destroy window(s).
+    app->renderer.shutdown();
 }
 
 bool create_window(Application* app)
@@ -158,6 +165,9 @@ bool run(Application* app)
     for (;;)
     {
         process_input();
+
+        app->renderer.update();
+        app->renderer.render();
 
 #if RENDERER_DEBUG
         update_debug_stats(app->window_handle, app->frame_count, app->frequency, app->time);

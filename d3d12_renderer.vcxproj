@@ -136,6 +136,9 @@
     <ClInclude Include="src\core\input.h" />
     <ClInclude Include="src\core\logger.h" />
     <ClInclude Include="src\core\platform\platform.h" />
+    <ClInclude Include="src\renderer\d3d12_helpers.h" />
+    <ClInclude Include="src\renderer\d3dx12.h" />
+    <ClInclude Include="src\renderer\renderer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\application.cpp" />
@@ -143,6 +146,7 @@
     <ClCompile Include="src\core\logger.cpp" />
     <ClCompile Include="src\core\platform\win32\win32_platform.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\renderer\renderer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
