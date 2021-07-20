@@ -9,6 +9,42 @@ struct Vertex
 	f32 color[4];
 };
 
+std::vector<u8> Renderer::generate_texture_data()
+{
+	const u32 row_pitch = TEXTURE_WIDTH * TEXTURE_PIXEL_SIZE;
+	const u32 cell_pitch = row_pitch >> 3; // The width of a cell in the checkerboard texture.
+	const u32 cell_height = TEXTURE_WIDTH >> 3; // The height of a cell in the checkerboard texture.
+	const u32 texture_size = row_pitch * TEXTURE_HEIGHT;
+
+	std::vector<u8> data(texture_size);
+	u8* p_data = &data[0];
+
+	for (u32 n = 0; n < texture_size; n += TEXTURE_PIXEL_SIZE)
+	{
+		u32 x = n % row_pitch;
+		u32 y = n / row_pitch;
+		u32 i = x / cell_pitch;
+		u32 j = y / cell_height;
+
+		if (i % 2 == j % 2)
+		{
+			p_data[n]     = 0x00; // R
+			p_data[n + 1] = 0x00; // G
+			p_data[n + 2] = 0x00; // B
+			p_data[n + 3] = 0xff; // A
+		}
+		else
+		{
+			p_data[n]     = 0xff; // R
+			p_data[n + 1] = 0xff; // G
+			p_data[n + 2] = 0xff; // B
+			p_data[n + 3] = 0xff; // A
+		}
+	}
+
+	return data;
+}
+
 bool Renderer::initialize(u32 viewport_width, u32 viewport_height, HWND hwnd)
 {
 	// Maybe do this in constructor.
@@ -118,6 +154,13 @@ void Renderer::load_pipeline(u32 viewport_width, u32 viewport_height, HWND hwnd)
 		rtv_desc_heap.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 		ThrowIfFailed(device->CreateDescriptorHeap(&rtv_desc_heap, IID_PPV_ARGS(&rtv_descriptor_heap)));
 
+		// SRV descriptor heap.
+		D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc = {};
+		srv_heap_desc.NumDescriptors = 1;
+		srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+		srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+		ThrowIfFailed(device->CreateDescriptorHeap(&srv_heap_desc, IID_PPV_ARGS(&srv_descriptor_heap)));
+
 		rtv_descriptor_size = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
 
@@ -140,7 +183,7 @@ void Renderer::load_pipeline(u32 viewport_width, u32 viewport_height, HWND hwnd)
 
 void Renderer::load_assets()
 {
-	// Create and empty root signature.
+	// Create an empty root signature.
 	{
 		CD3DX12_ROOT_SIGNATURE_DESC root_signature_desc;
 		root_signature_desc.Init(0, nullptr, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -148,9 +191,51 @@ void Renderer::load_assets()
 		ID3DBlob* signature;
 		ID3DBlob* error;
 		ThrowIfFailed(D3D12SerializeRootSignature(&root_signature_desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &error));
-		ThrowIfFailed(device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
+		ThrowIfFailed(device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&empty_root_signature)));
 	}
 
+	// Create single texture root signature.
+	{
+		D3D12_FEATURE_DATA_ROOT_SIGNATURE feature_data = {};
+
+		feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
+
+		if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &feature_data, sizeof(feature_data))))
+		{
+			feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
+		}
+
+		CD3DX12_DESCRIPTOR_RANGE1 ranges[1];
+		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+
+		CD3DX12_ROOT_PARAMETER1 root_parameters[1];
+		root_parameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_PIXEL);
+
+		D3D12_STATIC_SAMPLER_DESC sampler = {};
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.MipLODBias = 0;
+		sampler.MaxAnisotropy = 0;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler.MinLOD = 0.0f;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ShaderRegister = 0;
+		sampler.RegisterSpace = 0;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+		CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC root_signature_desc;
+		root_signature_desc.Init_1_1(_countof(root_parameters), root_parameters, 1, &sampler, D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+		ID3DBlob* signature;
+		ID3DBlob* error;
+		ThrowIfFailed(D3DX12SerializeVersionedRootSignature(&root_signature_desc, feature_data.HighestVersion, &signature, &error));
+		ThrowIfFailed(device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&single_texture_root_signature)));
+	}
+
+#if 0 // Colored triangle.
 	// Create the pipeline state, which includes compiling and loading shaders.
 	{
 		ID3DBlob* vertex_shader;
@@ -176,7 +261,7 @@ void Renderer::load_assets()
 		// Describe and create the graphics pipeline state object (PSO).
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {};
 		pso_desc.InputLayout = { input_element_descs, _countof(input_element_descs) };
-		pso_desc.pRootSignature = root_signature;
+		pso_desc.pRootSignature = empty_root_signature;
 		pso_desc.VS = CD3DX12_SHADER_BYTECODE(vertex_shader);
 		pso_desc.PS = CD3DX12_SHADER_BYTECODE(pixel_shader);
 		pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -190,13 +275,53 @@ void Renderer::load_assets()
 		pso_desc.SampleDesc.Count = 1;
 		ThrowIfFailed(device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state)));
 	}
+#else
+	{
+		ID3DBlob* vertex_shader;
+		ID3DBlob* pixel_shader;
+
+#if defined(RENDERER_DEBUG)
+		// Enable better shader debugging with the graphics debugging tools.
+		u32 compile_flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#else
+		u32 compile_flags = 0;
+#endif
+
+		ThrowIfFailed(D3DCompileFromFile(L"F:/Dev/d3d12_renderer/assets/shaders/simple_textured_vs.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", compile_flags, 0, &vertex_shader, nullptr));
+		ThrowIfFailed(D3DCompileFromFile(L"F:/Dev/d3d12_renderer/assets/shaders/simple_textured_ps.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", compile_flags, 0, &pixel_shader, nullptr));
+
+		// Define the vertex input layout.
+		D3D12_INPUT_ELEMENT_DESC input_element_descs[] =
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		};
+
+		// Describe and create the graphics pipeline state object (PSO).
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc = {};
+		pso_desc.InputLayout = { input_element_descs, _countof(input_element_descs) };
+		pso_desc.pRootSignature = single_texture_root_signature;
+		pso_desc.VS = CD3DX12_SHADER_BYTECODE(vertex_shader);
+		pso_desc.PS = CD3DX12_SHADER_BYTECODE(pixel_shader);
+		pso_desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		pso_desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		pso_desc.DepthStencilState.DepthEnable = FALSE;
+		pso_desc.DepthStencilState.StencilEnable = FALSE;
+		pso_desc.SampleMask = UINT_MAX;
+		pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		pso_desc.NumRenderTargets = 1;
+		pso_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+		pso_desc.SampleDesc.Count = 1;
+		ThrowIfFailed(device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&pipeline_state)));
+	}
+#endif
 
 	// Create command list.
 	ThrowIfFailed(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, command_allocator, nullptr, IID_PPV_ARGS(&command_list)));
 
 	// Command lists are created in the recording state, but there is nothing to record... yet.
 	// The main loop expects it to be closed, so close it for now.
-	ThrowIfFailed(command_list->Close());
+	//ThrowIfFailed(command_list->Close());
 
 	// Create the vertex buffer.
 	{
@@ -235,6 +360,67 @@ void Renderer::load_assets()
 		vertex_buffer_view.SizeInBytes    = vertex_buffer_size;
 	}
 
+	ID3D12Resource* texture_upload_heap;
+
+	// Create the texture.
+	{
+		D3D12_RESOURCE_DESC texture_desc = {};
+		texture_desc.MipLevels = 1;
+		texture_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		texture_desc.Width = TEXTURE_WIDTH;
+		texture_desc.Height = TEXTURE_HEIGHT;
+		texture_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+		texture_desc.DepthOrArraySize = 1;
+		texture_desc.SampleDesc.Count = 1;
+		texture_desc.SampleDesc.Quality = 0;
+		texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+		ThrowIfFailed(device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
+			D3D12_HEAP_FLAG_NONE,
+			&texture_desc,
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			nullptr,
+			IID_PPV_ARGS(&texture)));
+
+		u64 upload_buffer_size;
+		device->GetCopyableFootprints(&texture->GetDesc(), 0, 1, 0, nullptr, nullptr, nullptr, &upload_buffer_size);
+
+		// Create the GPU upload buffer.
+		ThrowIfFailed(device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(upload_buffer_size),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&texture_upload_heap)));
+
+		// Copy data to the intermediate upload heap and then schedul a copy
+		// from the upload heap to the Texture2D.
+		std::vector<u8> raw_texture_data = generate_texture_data();
+
+		D3D12_SUBRESOURCE_DATA texture_data = {};
+		texture_data.pData = &raw_texture_data[0];
+		texture_data.RowPitch = TEXTURE_WIDTH * TEXTURE_PIXEL_SIZE;
+		texture_data.SlicePitch = texture_data.RowPitch * TEXTURE_HEIGHT;
+
+		UpdateSubresources(command_list, texture, texture_upload_heap, 0, 0, 1, &texture_data);
+		command_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE));
+
+		// Describe and create a SRV for the texture.
+		D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+		srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srv_desc.Format = texture_desc.Format;
+		srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srv_desc.Texture2D.MipLevels = 1;
+		device->CreateShaderResourceView(texture, &srv_desc, srv_descriptor_heap->GetCPUDescriptorHandleForHeapStart());
+	}
+
+	// Close the command list and execute it to begin the inital GPU setup (texture upload).
+	ThrowIfFailed(command_list->Close());
+	ID3D12CommandList* command_lists[] = { command_list };
+	command_queue->ExecuteCommandLists(_countof(command_lists), command_lists);
+
 	// Create synchronization objects.
 	{
 		ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&frame_fence)));
@@ -267,7 +453,12 @@ void Renderer::populate_command_list()
 	ThrowIfFailed(command_list->Reset(command_allocator, pipeline_state));
 
 	// Set necessary state.
-	command_list->SetGraphicsRootSignature(root_signature);
+	command_list->SetGraphicsRootSignature(single_texture_root_signature);
+
+	ID3D12DescriptorHeap* heaps[] = { srv_descriptor_heap };
+	command_list->SetDescriptorHeaps(_countof(heaps), heaps);
+
+	command_list->SetGraphicsRootDescriptorTable(0, srv_descriptor_heap->GetGPUDescriptorHandleForHeapStart());
 	command_list->RSSetViewports(1, &viewport);
 	command_list->RSSetScissorRects(1, &scissor_rect);
 

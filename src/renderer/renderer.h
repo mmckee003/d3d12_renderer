@@ -2,6 +2,7 @@
 
 #include "core/core_types.h"
 
+#include <initguid.h>
 #include <d3d12.h>
 // Do all drivers support this??
 #include <dxgi1_6.h>
@@ -19,6 +20,9 @@
 struct Renderer
 {
 	static const u32 FRAME_COUNT = 2;
+	static const u32 TEXTURE_WIDTH = 256;
+	static const u32 TEXTURE_HEIGHT = 256;
+	static const u32 TEXTURE_PIXEL_SIZE = 4; // The number of bytes used to represent a pixel in the texture.
 
 	// Pipeline objects.
 	CD3DX12_VIEWPORT viewport;
@@ -28,8 +32,10 @@ struct Renderer
 	ID3D12Resource* render_targets[FRAME_COUNT];
 	ID3D12CommandAllocator* command_allocator;
 	ID3D12CommandQueue* command_queue;
-	ID3D12RootSignature* root_signature;
+	ID3D12RootSignature* empty_root_signature;
+	ID3D12RootSignature* single_texture_root_signature;
 	ID3D12DescriptorHeap* rtv_descriptor_heap;
+	ID3D12DescriptorHeap* srv_descriptor_heap;
 	ID3D12PipelineState* pipeline_state;
 	ID3D12GraphicsCommandList* command_list;
 	u32 rtv_descriptor_size = 0;
@@ -37,6 +43,7 @@ struct Renderer
 	// App resources.
 	ID3D12Resource* vertex_buffer;
 	D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
+	ID3D12Resource* texture;
 
 	// Synchronization objects.
 	u32 frame_index = 0;
@@ -46,6 +53,12 @@ struct Renderer
 
 	// TEMPORARY
 	f32 aspect_ratio;
+
+	struct VertexXUV
+	{
+		DirectX::XMFLOAT3 position;
+		DirectX::XMFLOAT2 uv;
+	};
 
 	bool initialize(u32 viewport_width, u32 viewport_height, HWND hwnd);
 	void update();
@@ -58,4 +71,6 @@ struct Renderer
 	void wait_for_previous_frame(bool increment_frame);
 
 	void get_hardware_adapter(IDXGIFactory1* factory, IDXGIAdapter1** adapter, bool request_high_performance_adapter = false);
+
+	static std::vector<u8> generate_texture_data();
 };
