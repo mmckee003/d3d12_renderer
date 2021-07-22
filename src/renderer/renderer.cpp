@@ -51,6 +51,7 @@ bool Renderer::initialize(u32 viewport_width, u32 viewport_height, HWND hwnd)
 	viewport = CD3DX12_VIEWPORT(0.0f, 0.0f, static_cast<f32>(viewport_width), static_cast<f32>(viewport_height));
 	scissor_rect = CD3DX12_RECT(0, 0, static_cast<LONG>(viewport_width), static_cast<LONG>(viewport_height));
 	aspect_ratio = (f32)viewport_width / (f32)viewport_height;
+	constant_buffer_data.offset = DirectX::XMFLOAT4(0, 0, 0, 0);
 
 	load_pipeline(viewport_width, viewport_height, hwnd);
 	load_assets();
@@ -59,7 +60,13 @@ bool Renderer::initialize(u32 viewport_width, u32 viewport_height, HWND hwnd)
 
 void Renderer::update()
 {
+	const f32 translation_speed = 0.005f;
+	const f32 offset_bounds = 1.25f;
 
+	constant_buffer_data.offset.x += translation_speed;
+	if (constant_buffer_data.offset.x > offset_bounds)
+		constant_buffer_data.offset.x = -offset_bounds;
+	memcpy(cbv_data_begin, &constant_buffer_data, sizeof(constant_buffer_data));
 }
 
 void Renderer::render()
@@ -114,6 +121,10 @@ void Renderer::load_pipeline(u32 viewport_width, u32 viewport_height, HWND hwnd)
 	// Create D3D12Device
 	ThrowIfFailed(D3D12CreateDevice(hardware_adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
 
+#if defined(RENDERER_DEBUG)
+
+#endif
+
 	D3D12_COMMAND_QUEUE_DESC queue_desc = {};
 	queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	queue_desc.Type  = D3D12_COMMAND_LIST_TYPE_DIRECT;
@@ -156,7 +167,7 @@ void Renderer::load_pipeline(u32 viewport_width, u32 viewport_height, HWND hwnd)
 
 		// SRV descriptor heap.
 		D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc = {};
-		srv_heap_desc.NumDescriptors = 1;
+		srv_heap_desc.NumDescriptors = 2;
 		srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 		ThrowIfFailed(device->CreateDescriptorHeap(&srv_heap_desc, IID_PPV_ARGS(&srv_descriptor_heap)));
@@ -205,11 +216,13 @@ void Renderer::load_assets()
 			feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
 		}
 
-		CD3DX12_DESCRIPTOR_RANGE1 ranges[1];
+		CD3DX12_DESCRIPTOR_RANGE1 ranges[2];
 		ranges[0].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
+		ranges[1].Init(D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 0, 0, D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC);
 
-		CD3DX12_ROOT_PARAMETER1 root_parameters[1];
+		CD3DX12_ROOT_PARAMETER1 root_parameters[2];
 		root_parameters[0].InitAsDescriptorTable(1, &ranges[0], D3D12_SHADER_VISIBILITY_PIXEL);
+		root_parameters[1].InitAsDescriptorTable(1, &ranges[1], D3D12_SHADER_VISIBILITY_VERTEX);
 
 		D3D12_STATIC_SAMPLER_DESC sampler = {};
 		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -360,6 +373,34 @@ void Renderer::load_assets()
 		vertex_buffer_view.SizeInBytes    = vertex_buffer_size;
 	}
 
+	// Create the constant buffer.
+	{
+		const u32 constant_buffer_size = sizeof(SceneConstantBuffer);
+
+		ThrowIfFailed(device->CreateCommittedResource(
+			&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+			D3D12_HEAP_FLAG_NONE,
+			&CD3DX12_RESOURCE_DESC::Buffer(constant_buffer_size),
+			D3D12_RESOURCE_STATE_GENERIC_READ,
+			nullptr,
+			IID_PPV_ARGS(&constant_buffer)
+		));
+
+		// Describe and create a constant buffer view.
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc = {};
+		cbv_desc.BufferLocation = constant_buffer->GetGPUVirtualAddress();
+		cbv_desc.SizeInBytes = constant_buffer_size;
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = srv_descriptor_heap->GetCPUDescriptorHandleForHeapStart();
+		handle.ptr += rtv_descriptor_size;
+		device->CreateConstantBufferView(&cbv_desc, handle);
+
+		// Map and initialize the constant buffer. We don't unmap this until the
+		// app closes. Keeping things mapped for the lifetime of the resource is okay.
+		CD3DX12_RANGE readRange(0, 0);        // We do not intend to read from this resource on the CPU.
+		ThrowIfFailed(constant_buffer->Map(0, &readRange, reinterpret_cast<void**>(&cbv_data_begin)));
+		memcpy(cbv_data_begin, &constant_buffer_data, sizeof(constant_buffer_data));
+	}
+
 	ID3D12Resource* texture_upload_heap;
 
 	// Create the texture.
@@ -459,6 +500,9 @@ void Renderer::populate_command_list()
 	command_list->SetDescriptorHeaps(_countof(heaps), heaps);
 
 	command_list->SetGraphicsRootDescriptorTable(0, srv_descriptor_heap->GetGPUDescriptorHandleForHeapStart());
+	CD3DX12_GPU_DESCRIPTOR_HANDLE gpu_handle(srv_descriptor_heap->GetGPUDescriptorHandleForHeapStart());
+	gpu_handle.Offset(1, rtv_descriptor_size);
+	command_list->SetGraphicsRootDescriptorTable(1, gpu_handle);
 	command_list->RSSetViewports(1, &viewport);
 	command_list->RSSetScissorRects(1, &scissor_rect);
 
@@ -502,7 +546,7 @@ void Renderer::wait_for_previous_frame(bool increment_frame)
 
 	if (increment_frame)
 	{
-		// TODO: SwapChain3 has a useful method to do this for us.
+		// TODO: SwapChain3 has a useful method to do this for us. Look into QueryInterface(...).
 		frame_index = (frame_index + 1) % 2;
 	}
 }

@@ -3,12 +3,7 @@
 #include "core/core_types.h"
 
 #include <initguid.h>
-#include <d3d12.h>
-// Do all drivers support this??
-#include <dxgi1_6.h>
-#include <d3dcompiler.h>
-// TODO: make my own math library.
-#include <DirectXMath.h>
+#include "renderer/d3d12_headers.h"
 
 #include "renderer/d3dx12.h"
 
@@ -16,6 +11,20 @@
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
+
+struct SceneConstantBuffer
+{
+	DirectX::XMFLOAT4 offset;
+	float padding[60]; // Padding so the constant buffer is 256-byte aligned.
+};
+
+struct VertexXUV
+{
+	DirectX::XMFLOAT3 position;
+	DirectX::XMFLOAT2 uv;
+};
+
+static_assert((sizeof(SceneConstantBuffer) % 256) == 0, "Constant Buffer size must be 256-byte aligned.");
 
 struct Renderer
 {
@@ -44,6 +53,9 @@ struct Renderer
 	ID3D12Resource* vertex_buffer;
 	D3D12_VERTEX_BUFFER_VIEW vertex_buffer_view;
 	ID3D12Resource* texture;
+	ID3D12Resource* constant_buffer;
+	SceneConstantBuffer constant_buffer_data;
+	UINT8* cbv_data_begin = nullptr;
 
 	// Synchronization objects.
 	u32 frame_index = 0;
@@ -53,12 +65,6 @@ struct Renderer
 
 	// TEMPORARY
 	f32 aspect_ratio;
-
-	struct VertexXUV
-	{
-		DirectX::XMFLOAT3 position;
-		DirectX::XMFLOAT2 uv;
-	};
 
 	bool initialize(u32 viewport_width, u32 viewport_height, HWND hwnd);
 	void update();

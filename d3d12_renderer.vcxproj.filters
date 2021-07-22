@@ -22,6 +22,8 @@
     <ClInclude Include="src\renderer\renderer.h" />
     <ClInclude Include="src\renderer\d3d12_helpers.h" />
     <ClInclude Include="src\renderer\d3dx12.h" />
+    <ClInclude Include="src\renderer\d3d12_resources.h" />
+    <ClInclude Include="src\renderer\d3d12_headers.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\core\application.cpp">
@@ -36,5 +38,6 @@
     </ClCompile>
     <ClCompile Include="src\core\platform\win32\win32_platform.cpp" />
     <ClCompile Include="src\renderer\renderer.cpp" />
+    <ClCompile Include="src\renderer\d3d12_resources.cpp" />
   </ItemGroup>
 </Project>
